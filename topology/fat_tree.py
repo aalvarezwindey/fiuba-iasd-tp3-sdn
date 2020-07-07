@@ -28,9 +28,8 @@ class FatTree(Topo):
 
         print('{} switches for level {}'.format(switches_amount_for_level, level))
 
-        for _ in range(0, switches_amount_for_level):
-            switch_id = len(switches)
-            sw = self.addSwitch('sw{}'.format(switch_id))
+        for switch_id_for_level in range(0, switches_amount_for_level):
+            sw = self.addSwitch('sw{}_{}'.format(level, switch_id_for_level))
             switches.append(sw)
             new_level_switches.append(sw)
 
