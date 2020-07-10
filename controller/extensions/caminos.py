@@ -12,10 +12,10 @@ class Switch:
         self.dpid = dpid
 
     def get_nivel(self):
-        return int(re.search('sw([0-9]+)_[0-9]+', self.nombre).group(1))
+        return int(re.search('sw[0-9]+_([0-9]+)', self.nombre).group(1))
 
     def __str__(self):
-        return 'Switch nombre: {}, conexion: {}, dpip: {}'.format(self.nombre, self.conexion, self.dpid)
+        return 'Switch {}'.format(self.nombre)
 
     def __repr__(self):
         return self.__str__()
@@ -69,7 +69,7 @@ class Links:
 
     def get_switches_a_nivel(self, nivel):
         switches = []
-        for switch in self.switches:
+        for switch in self.switches.values():
             if switch.get_nivel() == nivel:
                 switches.append(switch)
         return switches
@@ -91,7 +91,7 @@ class Camino:
 
     def copiar(self):
         nuevo_camino = Camino()
-        nuevo_camino.switches = self.switches.copy()
+        nuevo_camino.switches = list(self.switches)
         return nuevo_camino
 
     def __str__(self):
@@ -143,6 +143,9 @@ class FatTree:
         # (despues vemos otros casos).
         links = self.links_por_switch[switch_origen.nombre]
         switches_nivel_superior = links.get_switches_a_nivel(switch_origen.get_nivel() - 1)
+        print('origen', switch_origen)
+        print('links', links)
+        print('switches superiores', switches_nivel_superior)
 
         if switch_origen == switch_destino:  # llegué a destino
             return [camino]

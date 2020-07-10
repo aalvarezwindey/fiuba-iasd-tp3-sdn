@@ -3,9 +3,8 @@ from pox.core import core
 import pox.openflow.discovery
 import pox.openflow.spanning_tree
 import pox.forwarding.l2_learning
-from pox.lib.util import dpid_to_str
 from extensions.switch import SwitchController
-from pprint import pprint
+import pox.host_tracker
 
 
 log = core.getLogger()
@@ -20,6 +19,21 @@ class Controller:
         # Esperando que los modulos openflow y openflow_discovery esten listos
         core.call_when_ready(self.startup, ('openflow', 'openflow_discovery'))
 
+    def _handle_HostEvent(self, event):
+        """
+        Listen to host_tracker events, fired up every time a host is up or down
+        To fire up we must issue a pingall from mininet cli.
+        Args:
+            event: HostEvent listening to core.host_tracker
+        Returns: nada
+        """
+        macaddr = event.entry.macaddr.toStr()
+        port = event.entry.port
+        print('macaddr', macaddr)
+        print('port', port)
+        print('event', event)
+        # your code here
+
     def startup(self):
         """
         Esta funcion se encarga de inicializar el controller
@@ -28,6 +42,7 @@ class Controller:
         """
         core.openflow.addListeners(self)
         core.openflow_discovery.addListeners(self)
+        core.host_tracker.addListenerByName("HostEvent", self._handle_HostEvent)
         log.info('Controller initialized')
 
     def _handle_ConnectionUp(self, event):
@@ -38,10 +53,9 @@ class Controller:
         # log.info("Switch %s has come up.", dpid_to_str(event.dpid))
         if event.connection not in self.connections:
 
-            # nombre = event.connection.features.ports[0].name
-            # switch = Switch(nombre, event.connection, event.dpid)
-            # self.fat_tree.agregar_switch(switch)
-            # print(self.fat_tree.niveles)
+            nombre = event.connection.features.ports[0].name
+            switch = Switch(nombre, event.connection, event.dpid)
+            self.fat_tree.agregar_switch(switch)
 
             self.connections.add(event.connection)
             sw = SwitchController(event.dpid, event.connection, self.fat_tree)
@@ -55,14 +69,14 @@ class Controller:
         # log.info("Link has been discovered from %s,%s to %s,%s", dpid_to_str(link.dpid1), link.port1,
         #          dpid_to_str(link.dpid2), link.port2)
 
-        # link = Link(link.dpid1, link.port1, link.dpid2, link.port2)
-        # self.fat_tree.agregar_link(link)
-        # pprint(self.fat_tree)
+        link = Link(link.dpid1, link.port1, link.dpid2, link.port2)
+        self.fat_tree.agregar_link(link)
 
 
 def launch():
     # Inicializando el modulo openflow_discovery
     pox.openflow.discovery.launch()
+    pox.host_tracker.launch()
 
     # Registrando el Controller en pox.core para que sea ejecutado
     core.registerNew(Controller)

@@ -1,7 +1,11 @@
+import pox
+
 from pox.core import core
 import pox.openflow.libopenflow_01 as of
 import pox.lib.packet as pkt
 import math
+
+from pox.lib.addresses import EthAddr
 
 log = core.getLogger()
 
@@ -14,16 +18,26 @@ class SwitchController:
         # El SwitchController se agrega como handler de los eventos del switch
         self.connection.addListeners(self)
 
+        # pox.openflow.libopenflow_01.ofp_features_reply()
+
+        # print(self.connection.features.datapath_id)
+        # for k,v in self.connection.ports.items():
+        #     print(k, v)
+
+        # pox.openflow.ConnectionIn
+
     def _handle_PacketIn(self, event):
         """
         Esta funcion es llamada cada vez que el switch recibe un paquete
         y no encuentra en su tabla una regla para rutearlo
         """
         packet = event.parsed
+        # pox.openflow.PacketIn()
+        # print(packet.__class__.__name__)
+        self.buscar_caminos(packet)
 
-        self.handle_packet(packet)
-        log.info("Packet arrived to switch %s from %s to %s", self.dpid, packet.src, packet.dst)
-        log.info("Packet arrived to switch %s from %s to %s", self.dpid, packet.src, packet.dst)
+        # self.handle_packet(packet)
+        # log.info("Packet arrived to switch %s from %s to %s", self.dpid, packet.src, packet.dst)
 
     # https://openflow.stanford.edu/display/ONL/POX+Wiki.html#POXWiki-Workingwithpackets%3Apox.lib.packet
     def handle_packet(self, packet):
@@ -102,5 +116,15 @@ class SwitchController:
             log.info("camino elegido para udp: %s", camino)
             return camino
 
-    def buscar_caminos(self, flow):
-      print(flow)
+    def buscar_caminos(self, paquete):
+        log.info("Packet arrived to switch %s from %s to %s", self.dpid, paquete.src, paquete.dst)
+        # print(flow)
+        switch_origen = self.fat_tree.get_switch_por_dpid(self.dpid)
+        # switch_destino = self.fat_tree.get_switch_por_dpid(int(paquete.dst.raw.encode('hex'), 16))
+        #
+        # print(switch_origen, switch_destino)
+        # print('destino', paquete.dst)
+        # caminos = self.fat_tree.get_caminos(switch_origen, switch_destino)
+        # print(caminos)
+        # EthAddr("")
+        # self.fat_tree.get_caminos
