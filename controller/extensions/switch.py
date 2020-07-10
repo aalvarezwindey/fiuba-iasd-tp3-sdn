@@ -74,6 +74,18 @@ class SwitchController:
                 log.info("FLOW UDP GENERADO %s", flow)
                 # self.elegir_camino_para_flow(flow)
                 self.buscar_caminos(flow)
+            else if ip_packet.protocol == pkt.ipv4.ICMP_PROTOCOL:
+                # SUPOSICION: Asumimos puerto 7 para paquetes ICMP
+                flow = {
+                    'ip_origen': ip_packet.srcip,
+                    'ip_destino': ip_packet.dstip,
+                    'puerto_origen': 7,
+                    'puerto_destino': 7,
+                    'protocolo': pkt.ipv4.ICMP_PROTOCOL
+                }
+
+                log.info("FLOW ICMP GENERADO %s", flow)
+                # self.elegir_camino_para_flow(flow)
             else:
                 log.info("* * * * * No se handlear este protocolo * * * * * %s", ip_packet.protocol)
 
