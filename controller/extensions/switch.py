@@ -74,8 +74,9 @@ class SwitchController:
                 log.info("FLOW UDP GENERADO %s", flow)
                 # self.elegir_camino_para_flow(flow)
                 self.buscar_caminos(flow)
-            else if ip_packet.protocol == pkt.ipv4.ICMP_PROTOCOL:
+            elif ip_packet.protocol == pkt.ipv4.ICMP_PROTOCOL:
                 # SUPOSICION: Asumimos puerto 7 para paquetes ICMP
+                # fuente: https://networkengineering.stackexchange.com/questions/37896/ping-port-number
                 flow = {
                     'ip_origen': ip_packet.srcip,
                     'ip_destino': ip_packet.dstip,

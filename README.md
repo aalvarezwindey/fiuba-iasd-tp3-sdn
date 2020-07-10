@@ -74,9 +74,9 @@ Ejecutar el comando
 
     docker-compose exec mininet mn --custom /tmp/topology/fat_tree.py --topo fat_tree,<n> --mac --arp --switch ovsk --controller remote
 
-Donde `<n>` es la cantidad de niveles del árbol. Si no se especifica se toma `n = 3`. Por ejemplo para invocar un árbol de 4 niveles:
+Donde `<n>` es la cantidad de niveles del árbol. Si no se especifica se toma `n = 3`. Por ejemplo para invocar un árbol de 3 niveles:
 
-    docker-compose exec mininet mn --custom /tmp/topology/fat_tree.py --topo fat_tree,4 --mac --arp --switch ovsk --controller remote
+    docker-compose exec mininet mn --custom /tmp/topology/fat_tree.py --topo fat_tree,3 --mac --arp --switch ovsk --controller remote
 
 
 Una vez que la topología esta iniciada y la consola de mininet esta disponible para utilizar, podemos probar la conexión corriendo
