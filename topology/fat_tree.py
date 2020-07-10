@@ -24,21 +24,23 @@ class FatTree(Topo):
         for level in range(0, tree_levels):
             # clear list
             new_level_switches = []
+            switches_amount_for_level = int(math.pow(2, level))
+            print('LEVEL: {}. new_level_switches = {}'.format(level, new_level_switches))
+            print('LEVEL: {}. previous_level_switches = {}'.format(level, previous_level_switches))
 
-            for level in range(0, tree_levels):
-                # clear list
-                new_level_switches = []
-                switches_amount_for_level = int(math.pow(2, level))
-                print('LEVEL: {}. new_level_switches = {}'.format(level, new_level_switches))
-                print('LEVEL: {}. previous_level_switches = {}'.format(level, previous_level_switches))
+            print('{} switches for level {}'.format(switches_amount_for_level, level))
 
-                print('{} switches for level {}'.format(switches_amount_for_level, level))
+            for switch_in_level_number in range(0, switches_amount_for_level):
+                sw_unique_id = len(switches)
+                sw_id_in_level = switch_in_level_number + 1
+                sw = self.addSwitch('sw{}_{}_{}'.format(sw_unique_id, level, sw_id_in_level))
+                switches.append(sw)
+                new_level_switches.append(sw)
 
-                for _ in range(0, switches_amount_for_level):
-                    sw_unique_id = len(switches)
-                    sw = self.addSwitch('sw{}_{}'.format(sw_unique_id, level))
-                    switches.append(sw)
-                    new_level_switches.append(sw)
+            # Para la raiz no entra aca porque el array esta vacio
+            for switch_in_previous_level in previous_level_switches:
+                for switch_in_new_level in new_level_switches:
+                    self.addLink(switch_in_previous_level, switch_in_new_level)
 
             # Agregamos los hosts a cada una de las hojas si es el ultimo nivel
             if level == tree_levels - 1:
@@ -57,27 +59,12 @@ class FatTree(Topo):
                 print('adding hosts to root switch')
                 for host_id in range(AMOUNT_OF_SWITCHES_FOR_LAST_LEVEL + 1, AMOUNT_OF_SWITCHES_FOR_LAST_LEVEL + HOSTS_IN_ROOT + 1):
                     print('adding host  h{} to root'.format(host_id))
-                    hosts.append(self.addHost('h{}'.format(host_id)))
+                    host = self.addHost('h{}'.format(host_id))
+                    hosts.append(host)
+                    root_switch = switches[0]
+                    self.addLink(root_switch, host)
 
-                # Agregamos los tres hosts si es la raiz
-                if level == 0:
-                    print('adding hosts to root switch')
-                    for host_id in range(1, HOSTS_IN_ROOT + 1):
-                        print('adding host  h{} to root'.format(host_id))
-                        hosts.append(self.addHost('h{}'.format(host_id)))
-
-
-                # Agregamos los hosts a cada una de las hojas si es el ultimo nivel
-                if level == tree_levels - 1:
-                    print('adding hosts to leaf switches')
-                    for switch_in_new_level in new_level_switches:
-                        host_id = len(hosts) + 1
-                        print('adding host  h{} to leaf switch {}'.format(host_id, switch_in_new_level))
-                        host = self.addHost('h{}'.format(host_id))
-                        hosts.append(host)
-                        self.addLink(switch_in_new_level, host)
-
-                previous_level_switches = new_level_switches
+            previous_level_switches = new_level_switches
 
 
 topos = {'fat_tree': FatTree}
