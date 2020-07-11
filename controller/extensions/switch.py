@@ -35,9 +35,8 @@ class SwitchController:
         y no encuentra en su tabla una regla para rutearlo
         """
         packet = event.parsed
-        # pox.openflow.PacketIn()
-        # print(packet.__class__.__name__)
-        self.buscar_caminos(packet)
+        caminos = self.buscar_caminos(packet)
+        print("hay {} caminos:".format(len(caminos)), caminos)
 
         # self.handle_packet(packet)
         # log.info("Packet arrived to switch %s from %s to %s", self.dpid, packet.src, packet.dst)
@@ -150,11 +149,14 @@ class SwitchController:
 
         # Si no es un host que esté en el nivel inferior, entonces está en el root
         if switch_destino is None:
-            switch_destino = self.fat_tree.niveles[0].switches[0]
+            try:
+                switch_destino = self.fat_tree.niveles[0].switches[0]
+            except (IndexError, KeyError):
+                # El switch root no esta.
+                return []
 
         switch_origen = self.fat_tree.get_switch_por_dpid(self.dpid)
         print("switch origen", switch_origen)
         print("switch destino", switch_destino)
 
-        caminos = self.fat_tree.get_caminos(switch_origen, switch_destino)
-        print("hay {} caminos:".format(len(caminos)), caminos)
+        return self.fat_tree.get_caminos(switch_origen, switch_destino)

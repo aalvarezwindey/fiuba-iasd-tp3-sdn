@@ -56,10 +56,21 @@ class Controller:
             nombre = event.connection.features.ports[0].name
             switch = Switch(nombre, event.connection, event.dpid)
             self.fat_tree.agregar_switch(switch)
+            print("switch agregado", switch)
 
             self.connections.add(event.connection)
             sw = SwitchController(event.dpid, event.connection, self.fat_tree)
             self.switches.append(sw)
+
+    def _handle_ConnectionDown(self, event):
+        """
+        Esta funcion es llamada cada vez que un switch se desconecta.
+        """
+        if event.connection in self.connections:
+            self.connections.remove(event.connection)
+            switch = self.fat_tree.get_switch_por_dpid(event.dpid)
+            self.fat_tree.quitar_switch(switch)
+            print("switch quitado", switch)
 
     def _handle_LinkEvent(self, event):
         """

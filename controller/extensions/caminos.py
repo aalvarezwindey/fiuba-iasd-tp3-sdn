@@ -52,6 +52,9 @@ class Nivel:
                 return switch
         return False
 
+    def quitar_switch(self, switch):
+        self.switches.remove(switch)
+
     def __str__(self):
         return 'Nivel {}: {}'.format(self.nivel, self.switches)
 
@@ -69,7 +72,8 @@ class Links:
         self.switches[switch.nombre] = switch
 
     def quitar_switch(self, switch):
-        del self.switches[switch.nombre]
+        if switch.nombre in self.switches:
+            del self.switches[switch.nombre]
 
     def get_switches_a_nivel(self, nivel):
         switches = []
@@ -123,8 +127,7 @@ class FatTree:
         return self.niveles[max(self.niveles.keys())]
 
     def agregar_switch(self, switch):
-        nivel = self.niveles.get(switch.get_nivel(),
-                                 Nivel(switch.get_nivel()))
+        nivel = self.niveles.get(switch.get_nivel(), Nivel(switch.get_nivel()))
         nivel.agregar_switch(switch)
         self.niveles[switch.get_nivel()] = nivel
 
@@ -256,5 +259,5 @@ class FatTree:
         links_switch2.quitar_switch(switch1)
 
     def quitar_switch(self, switch):
-        # TODO.
-        pass
+        nivel = self.niveles.get(switch.get_nivel(), Nivel(switch.get_nivel()))
+        nivel.quitar_switch(switch)
