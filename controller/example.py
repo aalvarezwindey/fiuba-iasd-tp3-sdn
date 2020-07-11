@@ -69,7 +69,9 @@ class Controller:
         # log.info("Link has been discovered from %s,%s to %s,%s", dpid_to_str(link.dpid1), link.port1,
         #          dpid_to_str(link.dpid2), link.port2)
 
-        link = Link(link.dpid1, link.port1, link.dpid2, link.port2)
+        switch1 = self.fat_tree.get_switch_por_dpid(link.dpid1)
+        switch2 = self.fat_tree.get_switch_por_dpid(link.dpid2)
+        link = Link(switch1, switch2)
         self.fat_tree.agregar_link(link)
 
 

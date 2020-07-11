@@ -121,6 +121,9 @@ Otra cosa que también puede ser útil es conectarse al container para correr co
 
 Este comando abre una terminal bash, dentro del container para ejecutar lo que necesitamos.
 
+### Tests
+
+    pytest tests
 
 ### Documentación
 

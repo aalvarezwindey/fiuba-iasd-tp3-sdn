@@ -26,15 +26,12 @@ class Switch:
 
 class Link:
 
-    def __init__(self, dpid1, puerto1, dpid2, puerto2):
-        self.dpid1 = dpid1
-        self.puerto1 = puerto1
-        self.dpid2 = dpid2
-        self.puerto2 = puerto2
+    def __init__(self, switch1, switch2):
+        self.switch1 = switch1
+        self.switch2 = switch2
 
     def __str__(self):
-        return 'Link dpid1: {}, puerto1: {}, dpip2: {}, puerto2: {}'.format(self.dpid1, self.puerto1, self.dpid2,
-                                                                            self.puerto2)
+        return 'Link switch1: {}, switch2: {}'.format(self.switch1, self.switch2)
 
     def __repr__(self):
         return self.__str__()
@@ -136,8 +133,8 @@ class FatTree:
         return False
 
     def agregar_link(self, link):
-        switch1 = self.get_switch_por_dpid(link.dpid1)
-        switch2 = self.get_switch_por_dpid(link.dpid2)
+        switch1 = link.switch1
+        switch2 = link.switch2
         assert switch1 is not False
         assert switch2 is not False
 
@@ -166,11 +163,7 @@ class FatTree:
         return self._get_caminos_mismo_nivel(switch_origen, switch_destino, camino)
 
     def _get_caminos_mismo_nivel(self, switch_origen, switch_destino, camino):
-        print("origen", switch_origen)
-        print("destino", switch_destino)
-        print("camino", camino)
         caminos_encontrados = self.get_caminos_distinto_nivel(switch_origen, switch_destino)
-        print("caminos encontrados", caminos_encontrados)
         # Si encontré caminos, entonces los concateno con el camino actual.
         if caminos_encontrados:
             caminos = []
@@ -202,7 +195,7 @@ class FatTree:
         # Si voy desde la raiz hacia niveles inferiores, invierto el orden
         # y luego invierto el resultado.
         invertir = False
-        if switch_origen.get_nivel() == 0:
+        if switch_origen.get_nivel() < switch_destino.get_nivel():
             switch_origen, switch_destino = switch_destino, switch_origen
             invertir = True
 
