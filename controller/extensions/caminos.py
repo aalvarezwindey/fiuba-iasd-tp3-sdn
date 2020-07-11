@@ -68,6 +68,9 @@ class Links:
     def agregar_switch(self, switch):
         self.switches[switch.nombre] = switch
 
+    def quitar_switch(self, switch):
+        del self.switches[switch.nombre]
+
     def get_switches_a_nivel(self, nivel):
         switches = []
         for switch in self.switches.values():
@@ -241,8 +244,16 @@ class FatTree:
         return self.__str__()
 
     def quitar_link(self, link):
-        # TODO.
-        pass
+        switch1 = link.switch1
+        switch2 = link.switch2
+        assert switch1 is not False
+        assert switch2 is not False
+
+        links_switch1 = self.links_por_switch[switch1.nombre]
+        links_switch2 = self.links_por_switch[switch2.nombre]
+
+        links_switch1.quitar_switch(switch2)
+        links_switch2.quitar_switch(switch1)
 
     def quitar_switch(self, switch):
         # TODO.

@@ -59,6 +59,24 @@ class TestCaminosConTresNiveles:
         caminos = self.fat_tree.get_caminos(sw1, sw2)
         assert len(caminos) == 2
 
+    def test_al_quitar_un_link_hay_un_camino_desde_el_root_al_nivel_inferior(self):
+        sw_root = self.fat_tree.get_switch_por_dpid('sw0_0_1')
+        sw_medio = self.fat_tree.get_switch_por_dpid('sw1_1_1')
+        sw_inferior = self.fat_tree.get_switch_por_dpid('sw6_2_4')
+        link = Link(sw_root, sw_medio)
+        self.fat_tree.quitar_link(link)
+        caminos = self.fat_tree.get_caminos(sw_root, sw_inferior)
+        assert len(caminos) == 1
+
+    def test_al_quitar_un_link_hay_un_camino_desde_el_nivel_inferior_al_root(self):
+        sw_root = self.fat_tree.get_switch_por_dpid('sw0_0_1')
+        sw_medio = self.fat_tree.get_switch_por_dpid('sw1_1_1')
+        sw_inferior = self.fat_tree.get_switch_por_dpid('sw6_2_4')
+        link = Link(sw_root, sw_medio)
+        self.fat_tree.quitar_link(link)
+        caminos = self.fat_tree.get_caminos(sw_inferior, sw_root)
+        assert len(caminos) == 1
+
 
 class TestCaminosConCuatroNiveles:
 

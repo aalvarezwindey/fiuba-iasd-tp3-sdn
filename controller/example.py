@@ -72,7 +72,13 @@ class Controller:
         switch1 = self.fat_tree.get_switch_por_dpid(link.dpid1)
         switch2 = self.fat_tree.get_switch_por_dpid(link.dpid2)
         link = Link(switch1, switch2)
-        self.fat_tree.agregar_link(link)
+
+        if event.added:
+            self.fat_tree.agregar_link(link)
+            print("Link agregado", link)
+        else:
+            self.fat_tree.quitar_link(link)
+            print("Link quitado", link)
 
 
 def launch():
