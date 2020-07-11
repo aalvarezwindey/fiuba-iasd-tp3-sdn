@@ -12,7 +12,10 @@ class Switch:
         self.dpid = dpid
 
     def get_nivel(self):
-        return int(re.search('sw[0-9]+_([0-9]+)', self.nombre).group(1))
+        return int(re.search('sw[0-9]+_([0-9]+)_[0-9]+', self.nombre).group(1))
+
+    def get_indice(self):
+        return int(re.search('sw[0-9]+_[0-9]+_([0-9]+)', self.nombre).group(1))
 
     def __str__(self):
         return 'Switch {}'.format(self.nombre)
@@ -30,7 +33,8 @@ class Link:
         self.puerto2 = puerto2
 
     def __str__(self):
-        return 'Link dpid1: {}, puerto1: {}, dpip2: {}, puerto2: {}'.format(self.dpid1, self.puerto1, self.dpid2, self.puerto2)
+        return 'Link dpid1: {}, puerto1: {}, dpip2: {}, puerto2: {}'.format(self.dpid1, self.puerto1, self.dpid2,
+                                                                            self.puerto2)
 
     def __repr__(self):
         return self.__str__()
@@ -94,6 +98,14 @@ class Camino:
         nuevo_camino.switches = list(self.switches)
         return nuevo_camino
 
+    def invertir(self):
+        self.switches = list(reversed(self.switches))
+
+    def __add__(self, otro):
+        nuevo = Camino()
+        nuevo.switches = self.switches + otro.switches
+        return nuevo
+
     def __str__(self):
         return 'Camino: {}'.format(self.switches)
 
@@ -106,6 +118,9 @@ class FatTree:
     def __init__(self):
         self.niveles = {}
         self.links_por_switch = {}
+
+    def get_nivel_inferior(self):
+        return self.niveles[max(self.niveles.keys())]
 
     def agregar_switch(self, switch):
         nivel = self.niveles.get(switch.get_nivel(),
@@ -135,29 +150,93 @@ class FatTree:
         self.links_por_switch[switch1.nombre] = links_switch1
         self.links_por_switch[switch2.nombre] = links_switch2
 
-    def get_caminos(self, switch_origen, switch_destino, camino=None):
-        if not camino:
-            camino = Camino()
+    def get_caminos(self, switch_origen, switch_destino):
+        if switch_origen.get_nivel() != switch_destino.get_nivel():
+            return self.get_caminos_distinto_nivel(switch_origen, switch_destino)
+        return self.get_caminos_mismo_nivel(switch_origen, switch_destino)
 
-        # En principio busco ir de abajo hacia arriba unicamente
-        # (despues vemos otros casos).
+    def get_caminos_mismo_nivel(self, switch_origen, switch_destino):
+        """
+        Obtengo los caminos para switches que van desde el nivel
+        inferior al nivel inferior.
+        """
+        # Creo el camino agregando el origen.
+        camino = Camino()
+        camino.agregar_switch(switch_origen)
+        return self._get_caminos_mismo_nivel(switch_origen, switch_destino, camino)
+
+    def _get_caminos_mismo_nivel(self, switch_origen, switch_destino, camino):
+        print("origen", switch_origen)
+        print("destino", switch_destino)
+        print("camino", camino)
+        caminos_encontrados = self.get_caminos_distinto_nivel(switch_origen, switch_destino)
+        print("caminos encontrados", caminos_encontrados)
+        # Si encontré caminos, entonces los concateno con el camino actual.
+        if caminos_encontrados:
+            caminos = []
+            for camino_encontrado in caminos_encontrados:
+                camino_nuevo = camino.copiar()
+                camino_nuevo.switches += camino_encontrado.switches[1:]
+                caminos.append(camino_nuevo)
+            return caminos
+
         links = self.links_por_switch[switch_origen.nombre]
         switches_nivel_superior = links.get_switches_a_nivel(switch_origen.get_nivel() - 1)
-        print('origen', switch_origen)
-        print('links', links)
-        print('switches superiores', switches_nivel_superior)
 
-        if switch_origen == switch_destino:  # llegué a destino
-            return [camino]
-
-        if not switches_nivel_superior:  # no hay switches en el nivel superior (camino sin salida)
+        # No hay switches en el nivel superior (camino sin salida).
+        if not switches_nivel_superior:
             return []
 
         caminos = []
         for switch in switches_nivel_superior:
             nuevo_camino = camino.copiar()
             nuevo_camino.agregar_switch(switch)
-            caminos += self.get_caminos(switch, switch_destino, nuevo_camino)
+            caminos += self._get_caminos_mismo_nivel(switch, switch_destino, nuevo_camino)
+        return caminos
+
+    def get_caminos_distinto_nivel(self, switch_origen, switch_destino):
+        """
+        Obtengo los caminos para switches que van desde el root al
+        nivel inferior o viceversa.
+        """
+        # Si voy desde la raiz hacia niveles inferiores, invierto el orden
+        # y luego invierto el resultado.
+        invertir = False
+        if switch_origen.get_nivel() == 0:
+            switch_origen, switch_destino = switch_destino, switch_origen
+            invertir = True
+
+        # Creo el camino agregando el origen.
+        camino = Camino()
+        camino.agregar_switch(switch_origen)
+
+        caminos = self._get_caminos_distinto_nivel(switch_origen, switch_destino, camino)
+        if invertir:
+            for camino in caminos:
+                camino.invertir()
+        return caminos
+
+    def _get_caminos_distinto_nivel(self, switch_origen, switch_destino, camino):
+        """
+        Obtengo los caminos para switches que van desde el nivel
+        inferior al root.
+        """
+        # Llegué a destino.
+        if switch_origen == switch_destino:
+            return [camino]
+
+        links = self.links_por_switch[switch_origen.nombre]
+        switches_nivel_superior = links.get_switches_a_nivel(switch_origen.get_nivel() - 1)
+
+        # No hay switches en el nivel superior (camino sin salida).
+        if not switches_nivel_superior:
+            return []
+
+        caminos = []
+        for switch in switches_nivel_superior:
+            nuevo_camino = camino.copiar()
+            nuevo_camino.agregar_switch(switch)
+            caminos += self._get_caminos_distinto_nivel(switch, switch_destino, nuevo_camino)
         return caminos
 
     def __str__(self):

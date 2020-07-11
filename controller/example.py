@@ -4,7 +4,7 @@ import pox.openflow.discovery
 import pox.openflow.spanning_tree
 import pox.forwarding.l2_learning
 from extensions.switch import SwitchController
-import pox.host_tracker
+# import pox.host_tracker
 
 
 log = core.getLogger()
@@ -42,7 +42,7 @@ class Controller:
         """
         core.openflow.addListeners(self)
         core.openflow_discovery.addListeners(self)
-        core.host_tracker.addListenerByName("HostEvent", self._handle_HostEvent)
+        # core.host_tracker.addListenerByName("HostEvent", self._handle_HostEvent)
         log.info('Controller initialized')
 
     def _handle_ConnectionUp(self, event):
@@ -76,7 +76,7 @@ class Controller:
 def launch():
     # Inicializando el modulo openflow_discovery
     pox.openflow.discovery.launch()
-    pox.host_tracker.launch()
+    # pox.host_tracker.launch()
 
     # Registrando el Controller en pox.core para que sea ejecutado
     core.registerNew(Controller)

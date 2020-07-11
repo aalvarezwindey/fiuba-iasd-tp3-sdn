@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 import pox
 
 from pox.core import core
@@ -5,7 +8,7 @@ import pox.openflow.libopenflow_01 as of
 import pox.lib.packet as pkt
 import math
 
-from pox.lib.addresses import EthAddr
+from pox.lib.addresses import EthAddr, IPAddr
 
 log = core.getLogger()
 
@@ -59,7 +62,7 @@ class SwitchController:
                 }
 
                 log.info("FLOW TCP GENERADO %s", flow)
-                self.buscar_caminos(flow)
+                # self.buscar_caminos(flow)
                 # self.elegir_camino_para_flow(flow)
             elif ip_packet.protocol == pkt.ipv4.UDP_PROTOCOL:
                 udp_packet = ip_packet.payload
@@ -73,7 +76,7 @@ class SwitchController:
 
                 log.info("FLOW UDP GENERADO %s", flow)
                 # self.elegir_camino_para_flow(flow)
-                self.buscar_caminos(flow)
+                # self.buscar_caminos(flow)
             elif ip_packet.protocol == pkt.ipv4.ICMP_PROTOCOL:
                 # SUPOSICION: Asumimos puerto 7 para paquetes ICMP
                 # fuente: https://networkengineering.stackexchange.com/questions/37896/ping-port-number
@@ -130,14 +133,28 @@ class SwitchController:
             return camino
 
     def buscar_caminos(self, paquete):
-        log.info("Packet arrived to switch %s from %s to %s", self.dpid, paquete.src, paquete.dst)
-        # print(flow)
+        log.info("Packet arrived to switch %s from %s to %s with ip %s",
+                 self.dpid, paquete.src, paquete.dst, paquete.payload.dstip)
+
+        if paquete.type != pkt.ethernet.IP_TYPE:
+            return
+
+        host = paquete.payload.dstip.toSigned() - IPAddr("10.0.0.0").toSigned()
+        print("host:", host)
+
+        nivel_inferior = self.fat_tree.get_nivel_inferior()
+        switch_destino = None
+        for switch in nivel_inferior.switches:
+            if switch.get_indice() == host:
+                switch_destino = switch
+
+        # Si no es un host que esté en el nivel inferior, entonces está en el root
+        if switch_destino is None:
+            switch_destino = self.fat_tree.niveles[0].switches[0]
+
         switch_origen = self.fat_tree.get_switch_por_dpid(self.dpid)
-        # switch_destino = self.fat_tree.get_switch_por_dpid(int(paquete.dst.raw.encode('hex'), 16))
-        #
-        # print(switch_origen, switch_destino)
-        # print('destino', paquete.dst)
-        # caminos = self.fat_tree.get_caminos(switch_origen, switch_destino)
-        # print(caminos)
-        # EthAddr("")
-        # self.fat_tree.get_caminos
+        print("switch origen", switch_origen)
+        print("switch destino", switch_destino)
+
+        caminos = self.fat_tree.get_caminos(switch_origen, switch_destino)
+        print("hay {} caminos:".format(len(caminos)), caminos)
