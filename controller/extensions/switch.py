@@ -38,11 +38,13 @@ class SwitchController:
         caminos = self.buscar_caminos(packet)
         print("hay {} caminos:".format(len(caminos)), caminos)
 
-        # self.handle_packet(packet)
+        flow = self.packet_to_flow(packet)
+        camino_elegido = self.elegir_camino_para_flow(flow, caminos)
+        print('Para el flow {} se eligio este camino {}'.format(flow, camino_elegido))
         # log.info("Packet arrived to switch %s from %s to %s", self.dpid, packet.src, packet.dst)
 
     # https://openflow.stanford.edu/display/ONL/POX+Wiki.html#POXWiki-Workingwithpackets%3Apox.lib.packet
-    def handle_packet(self, packet):
+    def packet_to_flow(self, packet):
         # SUPOSICION: solo manejamos paquetes ethernet
         if packet.type == pkt.ethernet.IP_TYPE:
             ip_packet = packet.payload
@@ -61,8 +63,7 @@ class SwitchController:
                 }
 
                 log.info("FLOW TCP GENERADO %s", flow)
-                # self.buscar_caminos(flow)
-                # self.elegir_camino_para_flow(flow)
+                return flow
             elif ip_packet.protocol == pkt.ipv4.UDP_PROTOCOL:
                 udp_packet = ip_packet.payload
                 flow = {
@@ -74,8 +75,7 @@ class SwitchController:
                 }
 
                 log.info("FLOW UDP GENERADO %s", flow)
-                # self.elegir_camino_para_flow(flow)
-                # self.buscar_caminos(flow)
+                return flow
             elif ip_packet.protocol == pkt.ipv4.ICMP_PROTOCOL:
                 # SUPOSICION: Asumimos puerto 7 para paquetes ICMP
                 # fuente: https://networkengineering.stackexchange.com/questions/37896/ping-port-number
@@ -88,12 +88,12 @@ class SwitchController:
                 }
 
                 log.info("FLOW ICMP GENERADO %s", flow)
-                # self.elegir_camino_para_flow(flow)
+                return flow
             else:
                 log.info("* * * * * No se handlear este protocolo * * * * * %s", ip_packet.protocol)
+                return {}
 
-    # TODO: usar los caminos minimos calculados
-    def elegir_camino_para_flow(self, flow, caminos=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]):
+    def elegir_camino_para_flow(self, flow, caminos):
         # SUPOSICION: le damos la misma cantidad de caminos posibles a TCP y a UDP,
         # pero dependiendo el trafico de ambos protocolos en la red podriamos cambiar esas cantidades.
         # Por ejemplo: si sabemos que a nuestro Datacenter el 90% de los paquetes que llegan son TCP
