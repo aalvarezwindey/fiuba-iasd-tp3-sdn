@@ -45,34 +45,43 @@ class SwitchController:
         if packet.type != pkt.ethernet.IP_TYPE:
             return
 
-        caminos = self.buscar_caminos(packet)
-        print("hay {} caminos:".format(len(caminos)), caminos)
-
+        print("********************* _HANDLE_PACKET_IN_ EN {}  *********************".format(self.nombre))
+        
         flow = self.packet_to_flow(packet)
-        print("Flow: {}".format(flow))
+        print("FLOW: {}".format(flow))
+
+        print("EL PAQUETE QUE NO SE MANEJAR ME LLEGO POR EL PUERTO NÚMERO: {}".format(event.port))
+        # Si soy el switch raiz, me interesa guardar en la tabla la relación:
+        # Puerto por el que me llego el paquete - IP origen para retornar el mensaje
+        soy_raiz = (self.nombre == 'sw0_0_1')  # Una forma tricky de darnos cuenta que somos el switch raiz
+        if (soy_raiz): #
+            # Grabamos la tabla del switch raiz para poder devolver el mensaje al host origen
+            self.connection.send(of.ofp_flow_mod(action=of.ofp_action_output(port=event.port),
+                        priority=42,
+                        match=of.ofp_match(dl_type=0x800,
+                                        nw_dst=flow['ip_origen'],       # Notar que invierto origen y destino
+                                        tp_dst=flow['puerto_origen'],
+                                        nw_src=flow['ip_destino'],
+                                        tp_src=flow['puerto_destino'],
+                                        nw_proto=flow['protocolo'])))
+
+        caminos = self.buscar_caminos(packet)
+        print("EXISTEN {} CAMINOS POSIBLES:".format(len(caminos)), caminos)
+
         camino_elegido = self.elegir_camino_para_flow(flow, caminos).switches
-        print('Para el flow {} se eligio este camino {}'.format(flow, camino_elegido))
+        print('PARA EL FLOW SE ELIGIÓ EL CAMINO {}'.format(camino_elegido))
 
         indice_en_vector_de_caminos = -1
 
         for i in range(len(camino_elegido)):
             if camino_elegido[i].dpid == self.dpid:
                 indice_en_vector_de_caminos = i
-            
-        print("Yo soy el switch dpid: {}, indice={} dentro del camino: {}".format(self.dpid, indice_en_vector_de_caminos, camino_elegido[indice_en_vector_de_caminos]))
-        print("Cantidad de caminos: {}".format(len(camino_elegido)))
 
-        if indice_en_vector_de_caminos == (len(camino_elegido) - 1):
-            print("Soy el ultimo switch de la cadena: {}, el proximo es el host destino.".format(self.nombre))
+        if (indice_en_vector_de_caminos == (len(camino_elegido) - 1)) and (not soy_raiz):
+            print("SOY UN SWITCH HOJA, NO SE COMO LLEGAR AL HOST DE ABAJO")
             # Suponemos que siempre habrá solo un host en cada switch hoja, y su numeración en puerto de swich sera n+1 siendo n
             # la cantidad de links con switches que hay en el switch hoja
             puerto_al_host = len(self.links) + 1
-
-            # TODO: Considerar el caso que seas el ultimo switch de la cadena (raiz) siendo el flujo 
-            # hacia arriba, en ese caso, no se cumple que el puerto_al_host sea como para el caso
-            # de un switch hoja
-
-            print("EL FLOW ES: {}".format(flow))
 
             self.connection.send(of.ofp_flow_mod(action=of.ofp_action_output(port=puerto_al_host ),
                                     priority=42,
@@ -83,11 +92,13 @@ class SwitchController:
                                                     tp_src=flow['puerto_origen'],
                                                     nw_proto=flow['protocolo'])))
         else:
+            print("NO SOY UN SWITCH HOJA")
+            # Busco entre mis links, aquél que me lleva al siguiente switch según el camino que me dieron
             for link in self.links:
                 if str(link.switch2) == str(camino_elegido[indice_en_vector_de_caminos+1]):
-                    # Tengo identificado el switch, puedo conocer los puertos
+                    # Tengo identificado el link, puedo conocer los puertos
                     mi_puerto = link.port_switch_1
-                    print("Llego al proximo switch a través del puerto: {}".format(mi_puerto))
+                    print("LLEGO AL PRÓXIMO SWITCH A TRAVÉS DE MI PUERTO NÚMERO: {}".format(mi_puerto))
 
                     self.connection.send(of.ofp_flow_mod(action=of.ofp_action_output(port=mi_puerto ),
                                             priority=42,
@@ -98,8 +109,8 @@ class SwitchController:
                                                             tp_src=flow['puerto_origen'],
                                                             nw_proto=flow['protocolo'])))
 
-
-        log.info("Packet arrived to switch %s from %s to %s", self.dpid, packet.src, packet.dst)
+    print("*********************  *********************  *********************")
+    #    log.info("Packet arrived to switch %s from %s to %s", self.dpid, packet.src, packet.dst)
 
     # https://openflow.stanford.edu/display/ONL/POX+Wiki.html#POXWiki-Workingwithpackets%3Apox.lib.packet
     def packet_to_flow(self, packet):
