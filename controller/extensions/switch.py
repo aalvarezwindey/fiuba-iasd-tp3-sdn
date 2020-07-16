@@ -14,13 +14,15 @@ log = core.getLogger()
 
 
 class SwitchController:
-    def __init__(self, dpid, connection, fat_tree):
+    def __init__(self, dpid, connection, fat_tree, nombre):
         self.dpid = dpid
         self.connection = connection
         self.fat_tree = fat_tree
+        self.nombre = nombre
         # El SwitchController se agrega como handler de los eventos del switch
         self.connection.addListeners(self)
-
+        self.links = []
+        
         # pox.openflow.libopenflow_01.ofp_features_reply()
 
         # print(self.connection.features.datapath_id)
@@ -29,19 +31,75 @@ class SwitchController:
 
         # pox.openflow.ConnectionIn
 
+    def add_link(self, link):
+        self.links.append(link)
+
     def _handle_PacketIn(self, event):
         """
         Esta funcion es llamada cada vez que el switch recibe un paquete
         y no encuentra en su tabla una regla para rutearlo
         """
+
         packet = event.parsed
+
+        if packet.type != pkt.ethernet.IP_TYPE:
+            return
+
         caminos = self.buscar_caminos(packet)
         print("hay {} caminos:".format(len(caminos)), caminos)
 
         flow = self.packet_to_flow(packet)
-        camino_elegido = self.elegir_camino_para_flow(flow, caminos)
+        print("Flow: {}".format(flow))
+        camino_elegido = self.elegir_camino_para_flow(flow, caminos).switches
         print('Para el flow {} se eligio este camino {}'.format(flow, camino_elegido))
-        # log.info("Packet arrived to switch %s from %s to %s", self.dpid, packet.src, packet.dst)
+
+        indice_en_vector_de_caminos = -1
+
+        for i in range(len(camino_elegido)):
+            if camino_elegido[i].dpid == self.dpid:
+                indice_en_vector_de_caminos = i
+            
+        print("Yo soy el switch dpid: {}, indice={} dentro del camino: {}".format(self.dpid, indice_en_vector_de_caminos, camino_elegido[indice_en_vector_de_caminos]))
+        print("Cantidad de caminos: {}".format(len(camino_elegido)))
+
+        if indice_en_vector_de_caminos == (len(camino_elegido) - 1):
+            print("Soy el ultimo switch de la cadena: {}, el proximo es el host destino.".format(self.nombre))
+            # Suponemos que siempre habrá solo un host en cada switch hoja, y su numeración en puerto de swich sera n+1 siendo n
+            # la cantidad de links con switches que hay en el switch hoja
+            puerto_al_host = len(self.links) + 1
+
+            # TODO: Considerar el caso que seas el ultimo switch de la cadena (raiz) siendo el flujo 
+            # hacia arriba, en ese caso, no se cumple que el puerto_al_host sea como para el caso
+            # de un switch hoja
+
+            print("EL FLOW ES: {}".format(flow))
+
+            self.connection.send(of.ofp_flow_mod(action=of.ofp_action_output(port=puerto_al_host ),
+                                    priority=42,
+                                    match=of.ofp_match(dl_type=0x800,
+                                                    nw_dst=flow['ip_destino'],
+                                                    tp_dst=flow['puerto_destino'],
+                                                    nw_src=flow['ip_origen'],
+                                                    tp_src=flow['puerto_origen'],
+                                                    nw_proto=flow['protocolo'])))
+        else:
+            for link in self.links:
+                if str(link.switch2) == str(camino_elegido[indice_en_vector_de_caminos+1]):
+                    # Tengo identificado el switch, puedo conocer los puertos
+                    mi_puerto = link.port_switch_1
+                    print("Llego al proximo switch a través del puerto: {}".format(mi_puerto))
+
+                    self.connection.send(of.ofp_flow_mod(action=of.ofp_action_output(port=mi_puerto ),
+                                            priority=42,
+                                            match=of.ofp_match(dl_type=0x800,
+                                                            nw_dst=flow['ip_destino'],
+                                                            tp_dst=flow['puerto_destino'],
+                                                            nw_src=flow['ip_origen'],
+                                                            tp_src=flow['puerto_origen'],
+                                                            nw_proto=flow['protocolo'])))
+
+
+        log.info("Packet arrived to switch %s from %s to %s", self.dpid, packet.src, packet.dst)
 
     # https://openflow.stanford.edu/display/ONL/POX+Wiki.html#POXWiki-Workingwithpackets%3Apox.lib.packet
     def packet_to_flow(self, packet):
@@ -130,13 +188,15 @@ class SwitchController:
             camino = caminos_para_udp[suma_puertos % len(caminos_para_udp)]
             log.info("camino elegido para udp: %s", camino)
             return camino
+        elif flow['protocolo'] == pkt.ipv4.ICMP_PROTOCOL:
+            # Suponemos que el tráfico de UDP es menor, asique compartimos los ICMP con los UDP
+            camino = caminos_para_udp[suma_puertos % len(caminos_para_udp)]
+            log.info("camino elegido para icmp: %s", camino)
+            return camino
 
     def buscar_caminos(self, paquete):
         log.info("Packet arrived to switch %s from %s to %s with ip %s",
                  self.dpid, paquete.src, paquete.dst, paquete.payload.dstip)
-
-        if paquete.type != pkt.ethernet.IP_TYPE:
-            return
 
         host = paquete.payload.dstip.toSigned() - IPAddr("10.0.0.0").toSigned()
         print("host:", host)

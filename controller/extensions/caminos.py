@@ -26,9 +26,11 @@ class Switch:
 
 class Link:
 
-    def __init__(self, switch1, switch2):
+    def __init__(self, switch1, switch2, link_info):
         self.switch1 = switch1
         self.switch2 = switch2
+        self.port_switch_1 = link_info.port1
+        self.port_switch_2 = link_info.port2
 
     def __str__(self):
         return 'Link switch1: {}, switch2: {}'.format(self.switch1, self.switch2)
@@ -115,6 +117,9 @@ class Camino:
 
     def __repr__(self):
         return self.__str__()
+
+    def __len__(self):
+        return len(self.switches)
 
 
 class FatTree:

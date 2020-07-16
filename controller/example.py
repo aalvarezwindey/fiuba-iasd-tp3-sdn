@@ -4,7 +4,9 @@ import pox.openflow.discovery
 import pox.openflow.spanning_tree
 import pox.forwarding.l2_learning
 from extensions.switch import SwitchController
-# import pox.host_tracker
+from pox.lib.util import dpid_to_str
+
+#import pox.host_tracker
 
 
 log = core.getLogger()
@@ -59,7 +61,7 @@ class Controller:
             print("switch agregado", switch)
 
             self.connections.add(event.connection)
-            sw = SwitchController(event.dpid, event.connection, self.fat_tree)
+            sw = SwitchController(event.dpid, event.connection, self.fat_tree, nombre)
             self.switches.append(sw)
 
     def _handle_ConnectionDown(self, event):
@@ -77,12 +79,15 @@ class Controller:
         Esta funcion es llamada cada vez que openflow_discovery descubre un nuevo enlace
         """
         link = event.link
-        # log.info("Link has been discovered from %s,%s to %s,%s", dpid_to_str(link.dpid1), link.port1,
-        #          dpid_to_str(link.dpid2), link.port2)
+        log.info("Link has been discovered from %s,%s to %s,%s", dpid_to_str(link.dpid1), link.port1, dpid_to_str(link.dpid2), link.port2)
 
         switch1 = self.fat_tree.get_switch_por_dpid(link.dpid1)
         switch2 = self.fat_tree.get_switch_por_dpid(link.dpid2)
-        link = Link(switch1, switch2)
+        link = Link(switch1, switch2, event.link)
+
+        for switch_controller in self.switches:
+            if switch_controller.dpid == switch1.dpid:
+                switch_controller.add_link(link)
 
         if event.added:
             self.fat_tree.agregar_link(link)

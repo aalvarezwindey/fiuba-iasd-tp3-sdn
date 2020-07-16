@@ -1,0 +1,14 @@
+
+
+POX -> POX is a networking software platform written in Python. POX started life as an OpenFlow controller, but can now also      function as an OpenFlow switch, and can be useful for writing networking software in general.
+
+    docker-compose up -d
+
+Ejecutar controlador con Spanning Tree:
+    docker-compose exec mininet /tmp/pox/pox.py samples.spanning_tree
+    
+Ejecutar controlador propio con POX (controller/example.py)
+    docker-compose exec mininet /tmp/pox/pox.py example
+    
+Levantar topologia fat tree con Mininet:
+    docker-compose exec mininet mn --custom /tmp/topology/fat_tree.py --topo fat_tree,3 --mac --arp --switch ovsk --controller remote
