@@ -53,10 +53,13 @@ class SwitchController:
         
 
         flow = self.packet_to_flow(packet)
+
+        is_icmp = False
         
         if flow['protocolo'] == pkt.ipv4.ICMP_PROTOCOL:
-            self._handle_ICMP_packet(event, flow)
-            return   
+            is_icmp = True
+            #self._handle_ICMP_packet(event, flow)
+            #return   
 
         print("FLOW: {}".format(flow))
 
@@ -66,14 +69,27 @@ class SwitchController:
         soy_raiz = (self.nombre == 'sw0_0_1')  # Una forma tricky de darnos cuenta que somos el switch raiz
         if (soy_raiz): #
             # Grabamos la tabla del switch raiz para poder devolver el mensaje al host origen
-            self.connection.send(of.ofp_flow_mod(action=of.ofp_action_output(port=event.port),
-                        priority=42,
-                        match=of.ofp_match(dl_type=0x800,
-                                        nw_dst=flow['ip_origen'],       # Notar que invierto origen y destino
-                                        tp_dst=flow['puerto_origen'],
-                                        nw_src=flow['ip_destino'],
-                                        tp_src=flow['puerto_destino'],
-                                        nw_proto=flow['protocolo'])))
+            if not is_icmp:
+                self.connection.send(of.ofp_flow_mod(action=of.ofp_action_output(port=event.port),
+                            priority=42,
+                            match=of.ofp_match(dl_type=0x800,
+                                            nw_dst=flow['ip_origen'],       # Notar que invierto origen y destino
+                                            tp_dst=flow['puerto_origen'],
+                                            nw_src=flow['ip_destino'],
+                                            tp_src=flow['puerto_destino'],
+                                            nw_proto=flow['protocolo'])))
+            else:
+                self.connection.send(of.ofp_flow_mod(action=of.ofp_action_output(port=event.port),
+                    priority=42,
+                    match=of.ofp_match(dl_type=0x800,
+                                    nw_dst=flow['ip_origen'],
+                                    nw_src=flow['ip_destino'])))
+                                    #in_port=event.port)))
+
+                self.connection.send(of.ofp_flow_mod(action=of.ofp_action_output(port=event.port),
+                    priority=42,
+                    match=of.ofp_match(dl_type=0x806,
+                                    in_port=event.port)))
 
         caminos = self.buscar_caminos(packet)
         print("EXISTEN {} CAMINOS POSIBLES:".format(len(caminos)), caminos)
@@ -93,31 +109,63 @@ class SwitchController:
             # la cantidad de links con switches que hay en el switch hoja
             puerto_al_host = len(self.links) + 1
 
-            self.connection.send(of.ofp_flow_mod(action=of.ofp_action_output(port=puerto_al_host ),
-                                    priority=42,
-                                    match=of.ofp_match(dl_type=0x800,
-                                                    nw_dst=flow['ip_destino'],
-                                                    tp_dst=flow['puerto_destino'],
-                                                    nw_src=flow['ip_origen'],
-                                                    tp_src=flow['puerto_origen'],
-                                                    nw_proto=flow['protocolo'])))
+            if not is_icmp:
+                self.connection.send(of.ofp_flow_mod(action=of.ofp_action_output(port=puerto_al_host ),
+                                        priority=42,
+                                        match=of.ofp_match(dl_type=0x800,
+                                                        nw_dst=flow['ip_destino'],
+                                                        tp_dst=flow['puerto_destino'],
+                                                        nw_src=flow['ip_origen'],
+                                                        tp_src=flow['puerto_origen'],
+                                                        nw_proto=flow['protocolo'])))
+
+            else:
+                self.connection.send(of.ofp_flow_mod(action=of.ofp_action_output(port=puerto_al_host ),
+                        priority=42,
+                        match=of.ofp_match(dl_type=0x800,
+                                        nw_dst=flow['ip_destino'],
+                                        nw_src=flow['ip_origen'],
+                                        in_port=event.port)))
+
+                self.connection.send(of.ofp_flow_mod(action=of.ofp_action_output(port=puerto_al_host),
+                    priority=42,
+                    match=of.ofp_match(dl_type=0x806,
+                                    in_port=event.port)))
+
         else:
             print("NO SOY UN SWITCH HOJA")
             # Busco entre mis links, aquél que me lleva al siguiente switch según el camino que me dieron
             for link in self.links:
+                if (len(camino_elegido) == 1):
+                    print("NO SE PUDO UBICAR EL PUERTO QUE ME LLEVA AL CLIENTE TARGET")
+                    return
                 if str(link.switch2) == str(camino_elegido[indice_en_vector_de_caminos+1]):
                     # Tengo identificado el link, puedo conocer los puertos
                     mi_puerto = link.port_switch_1
                     print("LLEGO AL PRÓXIMO SWITCH A TRAVÉS DE MI PUERTO NÚMERO: {}".format(mi_puerto))
 
-                    self.connection.send(of.ofp_flow_mod(action=of.ofp_action_output(port=mi_puerto),
-                                            priority=42,
-                                            match=of.ofp_match(dl_type=0x800,
-                                                            nw_dst=flow['ip_destino'],
-                                                            tp_dst=flow['puerto_destino'],
-                                                            nw_src=flow['ip_origen'],
-                                                            tp_src=flow['puerto_origen'],
-                                                            nw_proto=flow['protocolo'])))
+                    if not is_icmp:
+                        self.connection.send(of.ofp_flow_mod(action=of.ofp_action_output(port=mi_puerto),
+                                                priority=42,
+                                                match=of.ofp_match(dl_type=0x800,
+                                                                nw_dst=flow['ip_destino'],
+                                                                tp_dst=flow['puerto_destino'],
+                                                                nw_src=flow['ip_origen'],
+                                                                tp_src=flow['puerto_origen'],
+                                                                nw_proto=flow['protocolo'])))
+
+                    else:
+                        self.connection.send(of.ofp_flow_mod(action=of.ofp_action_output(port=mi_puerto),
+                            priority=42,
+                            match=of.ofp_match(dl_type=0x800,
+                                            nw_dst=flow['ip_destino'],
+                                            nw_src=flow['ip_origen'],
+                                            in_port=event.port)))
+
+                        self.connection.send(of.ofp_flow_mod(action=of.ofp_action_output(port=mi_puerto),
+                            priority=42,
+                            match=of.ofp_match(dl_type=0x806,
+                                            in_port=event.port)))
 
     print("*********************  *********************  *********************")
     #    log.info("Packet arrived to switch %s from %s to %s", self.dpid, packet.src, packet.dst)
