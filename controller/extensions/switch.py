@@ -192,8 +192,9 @@ class SwitchController:
 
         elif (soy_hoja):
             print("SOY UN SWITCH HOJA.")
+            puertos_de_salida = []
             for link in self.links:
-                print("SET REGLA: DE PUERTO {} A PUERTO {}".format(link.port_switch_1, (len(self.links) + 1)))
+                puertos_de_salida.append(link.port_switch_1)
 
                 fm = of.ofp_flow_mod()
                 fm.match.in_port = link.port_switch_1
@@ -211,23 +212,24 @@ class SwitchController:
                 fm.actions.append(of.ofp_action_output( port = (len(self.links) + 1)))
                 self.connection.send(fm)
 
-                print("SET REGLA: DE PUERTO {} A PUERTO {}".format((len(self.links) + 1), link.port_switch_1))
 
-                fm = of.ofp_flow_mod()
-                fm.match.in_port = (len(self.links) + 1)
-                fm.priority = 42
-                fm.match.dl_type = 0x0800
-                fm.match.nw_src = flow['ip_destino']
-                fm.match.nw_dst = flow['ip_origen']
-                fm.actions.append(of.ofp_action_output( port = link.port_switch_1))
-                self.connection.send( fm )
+            fm = of.ofp_flow_mod()
+            fm.match.in_port = (len(self.links) + 1)
+            fm.priority = 42
+            fm.match.dl_type = 0x0800
+            fm.match.nw_src = flow['ip_destino']
+            fm.match.nw_dst = flow['ip_origen']
+            for puerto_de_salida in puertos_de_salida:
+                fm.actions.append(of.ofp_action_output( port = puerto_de_salida))
+            self.connection.send( fm )
 
-                fm = of.ofp_flow_mod()
-                fm.match.in_port = (len(self.links) + 1)
-                fm.match.dl_type = 0x0806
-                fm.priority = 33001
-                fm.actions.append(of.ofp_action_output( port = link.port_switch_1 ))
-                self.connection.send(fm)
+            fm = of.ofp_flow_mod()
+            fm.match.in_port = (len(self.links) + 1)
+            fm.match.dl_type = 0x0806
+            fm.priority = 33001
+            for puerto_de_salida in puertos_de_salida:
+                fm.actions.append(of.ofp_action_output( port = puerto_de_salida))
+            self.connection.send(fm)
 
         else:
             # Soy un switch intermedio
@@ -282,31 +284,13 @@ class SwitchController:
                 for puerto_de_salida in puertos_de_salida:
                     fm.actions.append(of.ofp_action_output( port = puerto_de_salida))
                 self.connection.send(fm)
-                
+
             else:
                 print("EL FLUJO ES HACIA ARRIBA")
+                puertos_de_salida = []
                 for link in self.links:
                     if (int(link.switch2.nombre[4]) < mi_nivel):
-
-                        print("SET REGLA: DE PUERTO {} A PUERTO {}".format(puerto_de_entrada, link.port_switch_1))
-
-                        fm = of.ofp_flow_mod()
-                        fm.match.in_port = puerto_de_entrada
-                        fm.priority = 42
-                        fm.match.dl_type = 0x0800
-                        fm.match.nw_src = flow['ip_destino']
-                        fm.match.nw_dst = flow['ip_origen']
-                        fm.actions.append(of.ofp_action_output( port = link.port_switch_1))
-                        self.connection.send( fm )
-
-                        fm = of.ofp_flow_mod()
-                        fm.match.in_port = puerto_de_entrada
-                        fm.match.dl_type = 0x0806
-                        fm.priority = 42
-                        fm.actions.append(of.ofp_action_output( port = link.port_switch_1))
-                        self.connection.send(fm)
-
-                        print("SET REGLA: DE PUERTO {} A PUERTO {}".format(link.port_switch_1, puerto_de_entrada))
+                        puertos_de_salida.append(link.port_switch_1)
 
                         fm = of.ofp_flow_mod()
                         fm.match.in_port = link.port_switch_1
@@ -323,6 +307,25 @@ class SwitchController:
                         fm.priority = 42
                         fm.actions.append(of.ofp_action_output( port = puerto_de_entrada))
                         self.connection.send(fm)
+
+                fm = of.ofp_flow_mod()
+                fm.match.in_port = puerto_de_entrada
+                fm.priority = 42
+                fm.match.dl_type = 0x0800
+                fm.match.nw_src = flow['ip_destino']
+                fm.match.nw_dst = flow['ip_origen']
+                for puerto_de_salida in puertos_de_salida:
+                    fm.actions.append(of.ofp_action_output( port = puerto_de_salida))
+                self.connection.send( fm )
+
+                fm = of.ofp_flow_mod()
+                fm.match.in_port = puerto_de_entrada
+                fm.match.dl_type = 0x0806
+                fm.priority = 42
+                for puerto_de_salida in puertos_de_salida:
+                    fm.actions.append(of.ofp_action_output( port = puerto_de_salida))
+                self.connection.send(fm)
+
 
     # https://openflow.stanford.edu/display/ONL/POX+Wiki.html#POXWiki-Workingwithpackets%3Apox.lib.packet
     def packet_to_flow(self, packet):
