@@ -53,6 +53,7 @@ class Controller:
         Se encarga de crear un nuevo switch controller para manejar los eventos de cada switch
         """
         # log.info("Switch %s has come up.", dpid_to_str(event.dpid))
+        
         if event.connection not in self.connections:
 
             nombre = event.connection.features.ports[0].name
@@ -78,6 +79,7 @@ class Controller:
         """
         Esta funcion es llamada cada vez que openflow_discovery descubre un nuevo enlace
         """
+
         link = event.link
         log.info("Link has been discovered from %s,%s to %s,%s", dpid_to_str(link.dpid1), link.port1, dpid_to_str(link.dpid2), link.port2)
 
@@ -86,6 +88,7 @@ class Controller:
         link = Link(switch1, switch2, event.link)
 
         for switch_controller in self.switches:
+            switch_controller.set_levels(len(self.fat_tree.niveles))
             if switch_controller.dpid == switch1.dpid:
                 switch_controller.add_link(link)
 

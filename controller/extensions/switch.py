@@ -22,6 +22,7 @@ class SwitchController:
         # El SwitchController se agrega como handler de los eventos del switch
         self.connection.addListeners(self)
         self.links = []
+        self.niveles = 0
         
         # pox.openflow.libopenflow_01.ofp_features_reply()
 
@@ -33,6 +34,9 @@ class SwitchController:
 
     def add_link(self, link):
         self.links.append(link)
+
+    def set_levels(self, levels):
+        self.niveles = levels
 
     def _handle_PacketIn(self, event):
         """
@@ -47,7 +51,13 @@ class SwitchController:
 
         print("********************* _HANDLE_PACKET_IN_ EN {}  *********************".format(self.nombre))
         
+
         flow = self.packet_to_flow(packet)
+        
+        if flow['protocolo'] == pkt.ipv4.ICMP_PROTOCOL:
+            self._handle_ICMP_packet(event, flow)
+            return   
+
         print("FLOW: {}".format(flow))
 
         print("EL PAQUETE QUE NO SE MANEJAR ME LLEGO POR EL PUERTO NÚMERO: {}".format(event.port))
@@ -100,7 +110,7 @@ class SwitchController:
                     mi_puerto = link.port_switch_1
                     print("LLEGO AL PRÓXIMO SWITCH A TRAVÉS DE MI PUERTO NÚMERO: {}".format(mi_puerto))
 
-                    self.connection.send(of.ofp_flow_mod(action=of.ofp_action_output(port=mi_puerto ),
+                    self.connection.send(of.ofp_flow_mod(action=of.ofp_action_output(port=mi_puerto),
                                             priority=42,
                                             match=of.ofp_match(dl_type=0x800,
                                                             nw_dst=flow['ip_destino'],
@@ -112,15 +122,217 @@ class SwitchController:
     print("*********************  *********************  *********************")
     #    log.info("Packet arrived to switch %s from %s to %s", self.dpid, packet.src, packet.dst)
 
+    def _handle_ICMP_packet(self, event, flow):
+        # Se invoca cuando _handle_PacketIn detecta que es un mensaje de tipo ICMP
+        # Algoritmo
+        # Básicamente, las reglas para ICMP son:
+        #    
+        #    - Si el paquete es ICMP
+        #    - Y te llegó por un puerto que te conecta para abajo
+        #       --> Mandalo por un puerto que te conecte para arriba
+        #
+        #    - Si el paquete es ICMP
+        #    - Y te llegó por un puerto que te conecte para arriba
+        #       --> Mandalo por un puerto que te coencte para abajo
+        #
+        
+        puerto_de_entrada = event.port
+        soy_raiz = (self.nombre == 'sw0_0_1')  # Una forma tricky de darnos cuenta que somos el switch raiz
+        soy_hoja = False
+        mi_nivel = int(self.nombre[4])
+
+
+        if (mi_nivel == (self.niveles-1)):
+            soy_hoja = True
+
+        # Hasta acá se si soy un switch raiz, intermedio u hoja
+
+        if (soy_raiz):
+            print("SOY UN SWITCH RAIZ.")
+            # Ya puedo escribir reglas
+            puertos_de_salida = []
+            for link in self.links:
+                puertos_de_salida.append(link.port_switch_1)
+
+                fm = of.ofp_flow_mod()
+                fm.match.in_port = link.port_switch_1
+                fm.priority = 42
+                fm.match.dl_type = 0x0800
+                fm.match.nw_src = flow['ip_destino']
+                fm.match.nw_dst = flow['ip_origen']
+                fm.actions.append(of.ofp_action_output(port = puerto_de_entrada))
+                self.connection.send( fm )
+                
+                fm = of.ofp_flow_mod()
+                fm.match.in_port = link.port_switch_1
+                fm.match.dl_type = 0x0806
+                fm.priority = 42
+                fm.actions.append(of.ofp_action_output(port = puerto_de_entrada ))
+                self.connection.send(fm)
+
+            print("SET REGLA: DE PUERTO {} A PUERTO {}".format(puerto_de_entrada, link.port_switch_1))
+
+            fm = of.ofp_flow_mod()
+            fm.match.in_port = puerto_de_entrada
+            fm.priority = 42
+            fm.match.dl_type = 0x0800
+            fm.match.nw_src = flow['ip_origen']
+            fm.match.nw_dst = flow['ip_destino']
+            for puerto_de_salida in puertos_de_salida:
+                fm.actions.append(of.ofp_action_output( port = puerto_de_salida ) )
+            self.connection.send( fm )
+
+            fm = of.ofp_flow_mod()
+            fm.match.in_port = puerto_de_entrada
+            fm.match.dl_type = 0x0806
+            fm.priority = 42
+            for puerto_de_salida in puertos_de_salida:
+                fm.actions.append(of.ofp_action_output( port = puerto_de_salida ) )
+            self.connection.send(fm)
+
+        elif (soy_hoja):
+            print("SOY UN SWITCH HOJA.")
+            for link in self.links:
+                print("SET REGLA: DE PUERTO {} A PUERTO {}".format(link.port_switch_1, (len(self.links) + 1)))
+
+                fm = of.ofp_flow_mod()
+                fm.match.in_port = link.port_switch_1
+                fm.priority = 42
+                fm.match.dl_type = 0x0800
+                fm.match.nw_src = flow['ip_origen']
+                fm.match.nw_dst = flow['ip_destino']
+                fm.actions.append(of.ofp_action_output( port = (len(self.links) + 1)))
+                self.connection.send( fm )
+
+                fm = of.ofp_flow_mod()
+                fm.match.in_port = link.port_switch_1
+                fm.match.dl_type = 0x0806
+                fm.priority = 42
+                fm.actions.append(of.ofp_action_output( port = (len(self.links) + 1)))
+                self.connection.send(fm)
+
+                print("SET REGLA: DE PUERTO {} A PUERTO {}".format((len(self.links) + 1), link.port_switch_1))
+
+                fm = of.ofp_flow_mod()
+                fm.match.in_port = (len(self.links) + 1)
+                fm.priority = 42
+                fm.match.dl_type = 0x0800
+                fm.match.nw_src = flow['ip_destino']
+                fm.match.nw_dst = flow['ip_origen']
+                fm.actions.append(of.ofp_action_output( port = link.port_switch_1))
+                self.connection.send( fm )
+
+                fm = of.ofp_flow_mod()
+                fm.match.in_port = (len(self.links) + 1)
+                fm.match.dl_type = 0x0806
+                fm.priority = 33001
+                fm.actions.append(of.ofp_action_output( port = link.port_switch_1 ))
+                self.connection.send(fm)
+
+        else:
+            # Soy un switch intermedio
+            mi_nivel = int(self.nombre[4])
+            print("SOY UN SWITCH INTERMEDIO EN EL NIVEL {}".format(mi_nivel))
+            flujo_hacia_abajo = True
+            for link in self.links:
+                if (link.port_switch_1 == puerto_de_entrada): # Identificamos el link por el que vino el paquete
+                        if (int(link.switch2.nombre[4]) < mi_nivel):
+                            # El paquete vino de arriba
+                            flujo_hacia_abajo = True
+                        else:
+                            flujo_hacia_abajo = False
+            
+            if flujo_hacia_abajo:
+                print("EL FLUJO ES HACIA ABAJO")
+                puertos_de_salida = []
+                for link in self.links:
+                    if (int(link.switch2.nombre[4]) > mi_nivel):
+                        puertos_de_salida.append(link.port_switch_1)
+                        
+                        fm = of.ofp_flow_mod()
+                        fm.match.in_port = link.port_switch_1
+                        fm.priority = 42
+                        fm.match.dl_type = 0x0800
+                        fm.match.nw_src = flow['ip_destino']
+                        fm.match.nw_dst = flow['ip_origen']
+                        fm.actions.append(of.ofp_action_output( port = puerto_de_entrada))
+                        self.connection.send( fm )
+
+                        fm = of.ofp_flow_mod()
+                        fm.match.in_port = link.port_switch_1
+                        fm.match.dl_type = 0x0806
+                        fm.priority = 42
+                        fm.actions.append(of.ofp_action_output( port = puerto_de_entrada))
+                        self.connection.send(fm)
+
+                fm = of.ofp_flow_mod()
+                fm.match.in_port = puerto_de_entrada
+                fm.priority = 42
+                fm.match.dl_type = 0x0800
+                fm.match.nw_src = flow['ip_origen']
+                fm.match.nw_dst = flow['ip_destino']
+                for puerto_de_salida in puertos_de_salida:
+                    fm.actions.append(of.ofp_action_output( port = puerto_de_salida))
+                self.connection.send( fm )
+
+                fm = of.ofp_flow_mod()
+                fm.match.in_port = puerto_de_entrada
+                fm.match.dl_type = 0x0806
+                fm.priority = 42
+                for puerto_de_salida in puertos_de_salida:
+                    fm.actions.append(of.ofp_action_output( port = puerto_de_salida))
+                self.connection.send(fm)
+                
+            else:
+                print("EL FLUJO ES HACIA ARRIBA")
+                for link in self.links:
+                    if (int(link.switch2.nombre[4]) < mi_nivel):
+
+                        print("SET REGLA: DE PUERTO {} A PUERTO {}".format(puerto_de_entrada, link.port_switch_1))
+
+                        fm = of.ofp_flow_mod()
+                        fm.match.in_port = puerto_de_entrada
+                        fm.priority = 42
+                        fm.match.dl_type = 0x0800
+                        fm.match.nw_src = flow['ip_destino']
+                        fm.match.nw_dst = flow['ip_origen']
+                        fm.actions.append(of.ofp_action_output( port = link.port_switch_1))
+                        self.connection.send( fm )
+
+                        fm = of.ofp_flow_mod()
+                        fm.match.in_port = puerto_de_entrada
+                        fm.match.dl_type = 0x0806
+                        fm.priority = 42
+                        fm.actions.append(of.ofp_action_output( port = link.port_switch_1))
+                        self.connection.send(fm)
+
+                        print("SET REGLA: DE PUERTO {} A PUERTO {}".format(link.port_switch_1, puerto_de_entrada))
+
+                        fm = of.ofp_flow_mod()
+                        fm.match.in_port = link.port_switch_1
+                        fm.priority = 42
+                        fm.match.dl_type = 0x0800
+                        fm.match.nw_src = flow['ip_origen']
+                        fm.match.nw_dst = flow['ip_destino']
+                        fm.actions.append(of.ofp_action_output( port = puerto_de_entrada))
+                        self.connection.send( fm )
+
+                        fm = of.ofp_flow_mod()
+                        fm.match.in_port = link.port_switch_1
+                        fm.match.dl_type = 0x0806
+                        fm.priority = 42
+                        fm.actions.append(of.ofp_action_output( port = puerto_de_entrada))
+                        self.connection.send(fm)
+
     # https://openflow.stanford.edu/display/ONL/POX+Wiki.html#POXWiki-Workingwithpackets%3Apox.lib.packet
     def packet_to_flow(self, packet):
         # SUPOSICION: solo manejamos paquetes ethernet
         if packet.type == pkt.ethernet.IP_TYPE:
             ip_packet = packet.payload
 
-            log.info("ip_packet.protocol: %s", ip_packet.protocol)
-            log.info("pkt.ipv4.TCP_PROTOCOL: %s", pkt.ipv4.TCP_PROTOCOL)
-            log.info("pkt.ipv4.UDP_PROTOCOL: %s", pkt.ipv4.UDP_PROTOCOL)
+            #log.info("ip_packet.protocol: %s", ip_packet.protocol)
+            #log.info("pkt.ipv4.TCP_PROTOCOL: %s", pkt.ipv4.TCP_PROTOCOL)
+            #log.info("pkt.ipv4.UDP_PROTOCOL: %s", pkt.ipv4.UDP_PROTOCOL)
             if ip_packet.protocol == pkt.ipv4.TCP_PROTOCOL:
                 tcp_packet = ip_packet.payload
                 flow = {
@@ -131,7 +343,7 @@ class SwitchController:
                     'protocolo': pkt.ipv4.TCP_PROTOCOL
                 }
 
-                log.info("FLOW TCP GENERADO %s", flow)
+                #log.info("FLOW TCP GENERADO %s", flow)
                 return flow
             elif ip_packet.protocol == pkt.ipv4.UDP_PROTOCOL:
                 udp_packet = ip_packet.payload
@@ -143,7 +355,7 @@ class SwitchController:
                     'protocolo': pkt.ipv4.UDP_PROTOCOL
                 }
 
-                log.info("FLOW UDP GENERADO %s", flow)
+                #log.info("FLOW UDP GENERADO %s", flow)
                 return flow
             elif ip_packet.protocol == pkt.ipv4.ICMP_PROTOCOL:
                 # SUPOSICION: Asumimos puerto 7 para paquetes ICMP
@@ -156,7 +368,7 @@ class SwitchController:
                     'protocolo': pkt.ipv4.ICMP_PROTOCOL
                 }
 
-                log.info("FLOW ICMP GENERADO %s", flow)
+                #log.info("FLOW ICMP GENERADO %s", flow)
                 return flow
             else:
                 log.info("* * * * * No se handlear este protocolo * * * * * %s", ip_packet.protocol)
@@ -178,39 +390,39 @@ class SwitchController:
 
         cantidad_de_caminos_para_udp = cantidad_de_caminos_para_tcp if not resto_de_caminos else resto_de_caminos
 
-        log.info("cantidad_de_caminos totales %s", len(caminos))
-        log.info("cantidad_de_caminos_para_tcp %s", cantidad_de_caminos_para_tcp)
-        log.info("cantidad_de_caminos_para_udp %s", cantidad_de_caminos_para_udp)
+        #log.info("cantidad_de_caminos totales %s", len(caminos))
+        #log.info("cantidad_de_caminos_para_tcp %s", cantidad_de_caminos_para_tcp)
+        #log.info("cantidad_de_caminos_para_udp %s", cantidad_de_caminos_para_udp)
 
         # Nuestro balanceo de caminos lo haremos unicamente en base a los puertos origen y destino
         caminos_para_tcp = caminos[0:cantidad_de_caminos_para_tcp]
         caminos_para_udp = caminos[cantidad_de_caminos_para_tcp:len(caminos)] if resto_de_caminos else caminos_para_tcp
-        log.info("caminos_para_tcp: %s", caminos_para_tcp)
-        log.info("caminos_para_udp: %s", caminos_para_udp)
+        #log.info("caminos_para_tcp: %s", caminos_para_tcp)
+        #log.info("caminos_para_udp: %s", caminos_para_udp)
 
         suma_puertos = flow['puerto_origen'] + flow['puerto_destino']
-        log.info("suma_puertos: %s", suma_puertos)
+        #log.info("suma_puertos: %s", suma_puertos)
 
         if flow['protocolo'] == pkt.ipv4.TCP_PROTOCOL:
             camino = caminos_para_tcp[suma_puertos % len(caminos_para_tcp)]
-            log.info("camino elegido para tcp: %s", camino)
+            #log.info("camino elegido para tcp: %s", camino)
             return camino
         elif flow['protocolo'] == pkt.ipv4.UDP_PROTOCOL:
             camino = caminos_para_udp[suma_puertos % len(caminos_para_udp)]
-            log.info("camino elegido para udp: %s", camino)
+            #log.info("camino elegido para udp: %s", camino)
             return camino
         elif flow['protocolo'] == pkt.ipv4.ICMP_PROTOCOL:
             # Suponemos que el tráfico de UDP es menor, asique compartimos los ICMP con los UDP
             camino = caminos_para_udp[suma_puertos % len(caminos_para_udp)]
-            log.info("camino elegido para icmp: %s", camino)
+            #log.info("camino elegido para icmp: %s", camino)
             return camino
 
     def buscar_caminos(self, paquete):
-        log.info("Packet arrived to switch %s from %s to %s with ip %s",
-                 self.dpid, paquete.src, paquete.dst, paquete.payload.dstip)
+        #log.info("Packet arrived to switch %s from %s to %s with ip %s",
+        #         self.dpid, paquete.src, paquete.dst, paquete.payload.dstip)
 
         host = paquete.payload.dstip.toSigned() - IPAddr("10.0.0.0").toSigned()
-        print("host:", host)
+        #print("host:", host)
 
         nivel_inferior = self.fat_tree.get_nivel_inferior()
         switch_destino = None
@@ -227,7 +439,7 @@ class SwitchController:
                 return []
 
         switch_origen = self.fat_tree.get_switch_por_dpid(self.dpid)
-        print("switch origen", switch_origen)
-        print("switch destino", switch_destino)
+        #print("switch origen", switch_origen)
+        #print("switch destino", switch_destino)
 
         return self.fat_tree.get_caminos(switch_origen, switch_destino)
