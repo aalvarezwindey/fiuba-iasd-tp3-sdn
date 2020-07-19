@@ -491,7 +491,9 @@ class SwitchController:
                 return []
 
         switch_origen = self.fat_tree.get_switch_por_dpid(self.dpid)
-        #print("switch origen", switch_origen)
-        #print("switch destino", switch_destino)
-
-        return self.fat_tree.get_caminos(switch_origen, switch_destino)
+        caminos = self.fat_tree.get_caminos(switch_origen, switch_destino)
+        # Si no hay caminos hasta el sw destino significa que se cayo algun link en el medio
+        # Entonces subo al root para volver a bajar
+        if len(caminos) == 0:
+            caminos = self.fat_tree.get_caminos(switch_origen, self.fat_tree.niveles[0].switches[0])
+        return caminos
