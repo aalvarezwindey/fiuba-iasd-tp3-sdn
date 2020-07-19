@@ -23,6 +23,9 @@ class Switch:
     def __repr__(self):
         return self.__str__()
 
+    def __eq__(self, other):
+        return self.nombre == other.nombre and \
+                self.dpid == other.dpid
 
 class Link:
 
@@ -33,10 +36,16 @@ class Link:
         self.port_switch_2 = link_info.port2
 
     def __str__(self):
-        return 'Link switch1: {}, switch2: {}'.format(self.switch1, self.switch2)
+        return 'Link switch1: {}, switch2: {} port1: {} port2: {}'.format(self.switch1, self.switch2, self.port_switch_1, self.port_switch_2)
 
     def __repr__(self):
         return self.__str__()
+
+    def __eq__(self, other):
+        return self.switch1 == other.switch1 and \
+                self.switch2 == other.switch2 and \
+                self.port_switch_1 == other.port_switch_1 and \
+                self.port_switch_2 == other.port_switch_2
 
 
 class Nivel:

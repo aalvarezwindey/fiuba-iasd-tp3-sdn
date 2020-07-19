@@ -33,7 +33,8 @@ class SwitchController:
         # pox.openflow.ConnectionIn
 
     def add_link(self, link):
-        self.links.append(link)
+        if link not in self.links:
+            self.links.append(link)
 
     def set_levels(self, levels):
         self.niveles = levels

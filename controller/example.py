@@ -3,6 +3,7 @@ from pox.core import core
 import pox.openflow.discovery
 import pox.openflow.spanning_tree
 import pox.forwarding.l2_learning
+import pox.openflow.libopenflow_01 as of
 from extensions.switch import SwitchController
 from pox.lib.util import dpid_to_str
 
@@ -52,7 +53,7 @@ class Controller:
         Esta funcion es llamada cada vez que un nuevo switch establece conexion
         Se encarga de crear un nuevo switch controller para manejar los eventos de cada switch
         """
-        # log.info("Switch %s has come up.", dpid_to_str(event.dpid))
+        log.info("Switch %s has come up.", dpid_to_str(event.dpid))
         
         if event.connection not in self.connections:
 
@@ -73,7 +74,19 @@ class Controller:
             self.connections.remove(event.connection)
             switch = self.fat_tree.get_switch_por_dpid(event.dpid)
             self.fat_tree.quitar_switch(switch)
+            for s in self.switches:
+                if s.dpid == switch.dpid:
+                    self.switches.remove(s)
+            self._wipe_switches_tables()
             print("switch quitado", switch)
+
+    def _handle_PortStatus (self, event):
+        self._wipe_switches_tables()
+
+    def _wipe_switches_tables(self):
+        for conn in self.connections:
+            conn.send(of.ofp_flow_mod(command=of.OFPFC_DELETE))
+            log.info('Deleted talbe entries for switch ' + str(conn.dpid))
 
     def _handle_LinkEvent(self, event):
         """
@@ -89,7 +102,7 @@ class Controller:
 
         for switch_controller in self.switches:
             switch_controller.set_levels(len(self.fat_tree.niveles))
-            if switch_controller.dpid == switch1.dpid:
+            if switch_controller.dpid == switch1.dpid and event.added:
                 switch_controller.add_link(link)
 
         if event.added:
@@ -97,8 +110,8 @@ class Controller:
             print("Link agregado", link)
         else:
             self.fat_tree.quitar_link(link)
+            self._wipe_switches_tables()
             print("Link quitado", link)
-
 
 def launch():
     # Inicializando el modulo openflow_discovery
